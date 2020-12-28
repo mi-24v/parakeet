@@ -10,7 +10,7 @@ steps:
   - name: docker
     image: plugins/docker
     settings:
-      repo: mi-24v/parakeet
+      repo: miwpayou0808/parakeet
       username:
         from_secret: dockerhub_username
       password:
