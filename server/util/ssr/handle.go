@@ -53,7 +53,15 @@ func Handle(c echo.Context, pool *Pool) error {
 	if titleKV != nil && titleKV.Value != "" {
 		title = titleKV.Value.(string)
 	}
-	initialState, entry := initializeState(c)
+	initialState, entry, shouldHandle, timeout := initializeState(c)
+
+	if !shouldHandle {
+		return c.Render(http.StatusOK, "ssr.html", Result{
+			Title: title,
+			Unix:  configs.GetUnix(),
+		})
+	}
+
 	ch := js.Exec(map[string]interface{}{
 		"url":     c.Request().URL.Path,
 		"title":   title,
@@ -89,18 +97,16 @@ func Handle(c echo.Context, pool *Pool) error {
 			util.Logger().WithField("error", res.Error).Errorln("js result error")
 			return c.Render(http.StatusInternalServerError, "ssr.html", res)
 		}
-	case <-time.After(3 * time.Second):
-		util.Logger().Errorln("cant keep up!")
-		return c.Render(http.StatusInternalServerError, "ssr.html", Result{
-			Error: "timeout",
+	case <-time.After(time.Duration(timeout) * time.Millisecond):
+		util.Logger().Warn("cant keep up!", "fallback to CSR")
+		return c.Render(http.StatusOK, "ssr.html", Result{
 			Title: title,
-			Meta:  "",
 			Unix:  configs.GetUnix(),
 		})
 	}
 }
 
-func initializeState(c echo.Context) (map[string]interface{}, *models.Entry) {
+func initializeState(c echo.Context) (map[string]interface{}, *models.Entry, bool, int) {
 	path := c.Request().URL.Path
 
 	entries := &models.Entries{}
@@ -110,27 +116,36 @@ func initializeState(c echo.Context) (map[string]interface{}, *models.Entry) {
 
 	enableEntriesSSR := true
 	enableEntrySSR := true
+	timeout := 3000
+	shouldHandle := false
 	kv := models.GetKVS(models.KVServerSideRendering)
 	if kv != nil {
-		enableEntriesSSR = kv.Value.(bson.M)["entries"].(bool)
-		enableEntrySSR = kv.Value.(bson.M)["entry"].(bool)
+		value := kv.Value.(bson.M)
+		enableEntriesSSR = value["entries"].(bool)
+		enableEntrySSR = value["entry"].(bool)
+		if value["timeout"] != nil {
+			timeout = int(value["timeout"].(float64))
+		}
 	}
 
 	if enableEntriesSSR && path == "/" {
-		entries = models.GetEntries(5, 1, false)
+		entries = models.GetEntries(5, 1, "", false)
+		shouldHandle = true
 	}
 	if enableEntriesSSR && strings.HasPrefix(path, "/entries/") {
 		r := regexp.MustCompile(`^/entries/(\d+)`).FindAllStringSubmatch(path, -1)
 		if len(r) == 1 && len(r[0]) == 2 {
 			if page, err := strconv.Atoi(r[0][1]); err == nil {
-				entries = models.GetEntries(5, page, false)
+				entries = models.GetEntries(5, page, "",false)
+				shouldHandle = true
 			}
 		}
 	}
 	if enableEntrySSR && strings.HasPrefix(path, "/entry/") {
 		r := regexp.MustCompile(`^/entry/(.*)`).FindAllStringSubmatch(path, -1)
 		if len(r) == 1 && len(r[0]) == 2 {
-			entry = models.GetEntryById(r[0][1], false)
+			entry = models.GetEntryById(r[0][1], false, true)
+			shouldHandle = true
 		}
 	}
 
@@ -140,7 +155,7 @@ func initializeState(c echo.Context) (map[string]interface{}, *models.Entry) {
 			"paginate": toJson(entries.Info),
 			"entry":    toJson(entry),
 		},
-	}, entry
+	}, entry, shouldHandle, timeout
 }
 
 func toJson(t interface{}) (result string) {

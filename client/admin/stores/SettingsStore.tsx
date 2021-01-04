@@ -11,6 +11,7 @@ export interface INotifyModel extends IModel {
 export interface IRender extends IModel {
     entries: boolean;
     entry: boolean;
+    timeout: number;
 }
 
 export interface ICloudflare extends IModel {
@@ -44,6 +45,12 @@ export class SettingsStore extends StoreBase {
     @observable.shallow
     public cloudflare: ICloudflare;
 
+    @observable
+    public customCss: string;
+
+    @observable
+    public mongoDbSearch: string;
+
     constructor() {
         super();
 
@@ -54,6 +61,7 @@ export class SettingsStore extends StoreBase {
         this.render = {
             entries: false,
             entry: false,
+            timeout: 3000,
         } as IRender;
         this.mongoDbQueryCache = false;
         this.ssrPageCache = false;
@@ -62,6 +70,8 @@ export class SettingsStore extends StoreBase {
             zone_id: "",
             api_token: "",
         } as ICloudflare;
+        this.customCss = "";
+        this.mongoDbSearch = "";
     }
 
     @action
@@ -335,6 +345,9 @@ export class SettingsStore extends StoreBase {
             }
 
             const result = await response.json();
+            if (!result.value.timeout || result.value.timeout === 0) {
+                result.value.timeout = 3000;
+            }
             this.render = result.value;
 
             this.setState(State.DONE);
@@ -565,6 +578,129 @@ export class SettingsStore extends StoreBase {
             this.setState(State.DONE);
         } catch (e) {
             this.tryShowToast("キャッシュ設定の保存に失敗しました");
+            console.error(e);
+            this.setState(State.ERROR);
+        }
+    }
+
+    @action
+    public async getCustomCss() {
+        this.setMode(Mode.GET);
+        this.setState(State.RUNNING);
+
+        try {
+            const url = `${this.apiBasePath}v1/settings/style/custom`;
+            const response = await fetch(url, {
+                method: "GET",
+            });
+
+            if (response.status !== 200) {
+                throw new Error();
+            }
+            this.customCss = await response.text();
+
+            this.setState(State.DONE);
+        } catch (e) {
+            this.tryShowToast("カスタムCSSの取得に失敗しました");
+            console.error(e);
+            this.setState(State.ERROR);
+        }
+    }
+
+    @action
+    public setCustomCss(css: string) {
+        this.customCss = css;
+    }
+
+    @action
+    public async putCustomCss() {
+        this.setMode(Mode.GET);
+        this.setState(State.RUNNING);
+
+        try {
+            const url = `${this.apiBasePath}v1/settings/style/custom`;
+            const response = await fetch(url, {
+                method: "PUT",
+                headers: this.generateFetchHeader(),
+                body: JSON.stringify({
+                    key: "",
+                    value: this.customCss,
+                }),
+            });
+
+            if (response.status !== 200) {
+                throw new Error();
+            }
+            const result = await response.json();
+            this.customCss = result.value;
+
+            this.tryShowToast("カスタムCSSを編集しました");
+            stores.AuthStore.checkAuth();
+            this.setState(State.DONE);
+        } catch (e) {
+            this.tryShowToast("カスタムCSSの保存に失敗しました");
+            console.error(e);
+            this.setState(State.ERROR);
+        }
+    }
+
+
+    @action
+    public async getMongoDbSearch() {
+        this.setMode(Mode.GET);
+        this.setState(State.RUNNING);
+
+        try {
+            const url = `${this.apiBasePath}v1/settings/search/mongodb`;
+            const response = await fetch(url, {
+                method: "GET",
+            });
+
+            if (response.status !== 200) {
+                throw new Error();
+            }
+            this.mongoDbSearch = await response.text();
+
+            this.setState(State.DONE);
+        } catch (e) {
+            this.tryShowToast("MongoDB検索設定の取得に失敗しました");
+            console.error(e);
+            this.setState(State.ERROR);
+        }
+    }
+
+    @action
+    public setMongoDbSearch(type: string) {
+        this.mongoDbSearch = type;
+    }
+
+    @action
+    public async putMongoDbSearch() {
+        this.setMode(Mode.GET);
+        this.setState(State.RUNNING);
+
+        try {
+            const url = `${this.apiBasePath}v1/settings/search/mongodb`;
+            const response = await fetch(url, {
+                method: "PUT",
+                headers: this.generateFetchHeader(),
+                body: JSON.stringify({
+                    key: "",
+                    value: this.mongoDbSearch,
+                }),
+            });
+
+            if (response.status !== 200) {
+                throw new Error();
+            }
+            const result = await response.json();
+            this.mongoDbSearch = result.value;
+
+            this.tryShowToast("MongoDB検索設定を編集しました");
+            stores.AuthStore.checkAuth();
+            this.setState(State.DONE);
+        } catch (e) {
+            this.tryShowToast("MongoDB検索設定の保存に失敗しました");
             console.error(e);
             this.setState(State.ERROR);
         }

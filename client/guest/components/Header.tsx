@@ -1,7 +1,8 @@
-import * as React from "react";
+import React from "react";
 import {style} from "typestyle";
 import {COLORS, SIZES} from "../constants/Style";
-import Paper, {PaperProps} from "@material-ui/core/Paper";
+import Paper from "@material-ui/core/Paper";
+import type {PaperProps} from "@material-ui/core/Paper";
 import {Link} from "react-router-dom";
 
 interface IProps extends PaperProps {
@@ -29,10 +30,14 @@ const styles = {
 
 export class Header extends React.Component<IProps, {}> {
     public render() {
+        const { title } = this.props;
+        const nextProps: PaperProps = { ...this.props };
+        nextProps.title = undefined;
+
         return (
-            <Paper {...this.props} className={styles.root} elevation={2} square={true}>
-                <div className={styles.inner}>
-                    <Link to={"/"} className={styles.title}><h1>{this.props.title}</h1></Link>
+            <Paper {...nextProps} className={styles.root} elevation={2} square={true} component={"header"}>
+                <div id={"title_container"} className={styles.inner}>
+                    <Link to={"/"} id={"title"} className={styles.title}><h1>{title}</h1></Link>
                 </div>
             </Paper>
         )

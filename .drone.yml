@@ -1,13 +1,31 @@
 ---
 kind: pipeline
-name: default
+name: x86_64
 
 workspace:
   base: /go
   path: src/github.com/mi-24v/parakeet
 
+environment:
+  DOCKER_BUILDKIT: 1
+
 steps:
-  - name: docker
+  - name: slack notification on start
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: slack_webhook_url
+      template: >
+        {{repo.owner}}/{{repo.name}} ({{build.branch}}) x86_64 build #{{build.number}} start: {{build.link}}
+    when:
+      branch:
+        - master
+        - develop
+      event:
+        - push
+        - tag
+
+  - name: build latest image
     image: plugins/docker
     settings:
       repo: miwpayou0808/parakeet
@@ -18,3 +36,57 @@ steps:
     when:
       branch:
         - master
+      event:
+        - push
+
+  - name: build edge image
+    image: plugins/docker
+    settings:
+      repo: miwpayou0808/parakeet
+      tags: edge
+      username:
+        from_secret: dockerhub_username
+      password:
+        from_secret: dockerhub_password
+    when:
+      branch:
+        - develop
+      event:
+        - push
+
+  - name: build tagged image
+    image: plugins/docker
+    settings:
+      repo: miwpayou0808/parakeet
+      auto_tag: true
+      username:
+        from_secret: dockerhub_username
+      password:
+        from_secret: dockerhub_password
+    when:
+      branch:
+        - master
+      event:
+        - tag
+
+  - name: slack notification on complete
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: slack_webhook_url
+      template: >
+        {{#success build.status}}
+           {{repo.owner}}/{{repo.name}} ({{build.branch}}) x86_64 build #{{build.number}} succeeded: {{build.link}}
+        {{else}}
+        {{repo.owner}}/{{repo.name}} ({{build.branch}}) x86_64 build #{{build.number}} failed: {{build.link}}
+        {{/success}}
+    when:
+      branch:
+        - master
+        - develop
+      event:
+        - push
+        - tag
+      status:
+        - success
+        - failure
