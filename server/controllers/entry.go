@@ -23,6 +23,7 @@ type (
 // @Produce json
 // @Param page query int false "ページネーションのページ数" default(1)
 // @Param limit query int false "1ページごとの件数" default(5)
+// @Param search query int false "検索クエリー"
 // @Success 200 {object} models.Entries
 // @Router /v1/entries [get]
 func GetEntries(c echo.Context) error {
@@ -34,19 +35,24 @@ func GetEntries(c echo.Context) error {
 	if err != nil {
 		page = 1
 	}
+	search := c.QueryParam("search")
 	includeDraft := c.Get("User") != nil
 
-	entry := models.GetEntries(limit, page, includeDraft)
-	if entry == nil {
+	entries := models.GetEntries(limit, page, search, includeDraft)
+	if entries == nil {
 		panic("db error")
 	}
-
-	return c.JSON(http.StatusOK, entry)
+	if !includeDraft {
+		for i, _ := range entries.Entries {
+			entries.Entries[i].FindCount = nil
+		}
+	}
+	return c.JSON(http.StatusOK, entries)
 }
 
 // @Tags entry
 // @Summary get entry
-// @Description エントリー一覧を取得します
+// @Description エントリーを取得します
 // @Produce json
 // @Param id path string true "エントリーの 'Mongo ObjectID'"
 // @Success 200 {object} EntryResponse
@@ -54,11 +60,15 @@ func GetEntries(c echo.Context) error {
 // @Router /v1/entries/{id} [get]
 func GetEntry(c echo.Context) error {
 	id := c.Param("id")
+	count := c.Request().Header.Get("X-Parakeet-Count")
 	includeDraft := c.Get("User") != nil
 
-	entry := models.GetEntryById(id, includeDraft)
+	entry := models.GetEntryById(id, includeDraft, !includeDraft || count == "true")
 	if entry == nil {
 		return c.NoContent(http.StatusNotFound)
+	}
+	if !includeDraft {
+		entry.FindCount = nil
 	}
 	return c.JSON(http.StatusOK, EntryResponse{
 		Entry: entry,
@@ -97,6 +107,8 @@ func UpsertEntry(c echo.Context) error {
 	}
 	user := c.Get("User").(*models.User)
 	entry.Author = user.Id
+	count := 0
+	entry.FindCount = &count
 
 	enableNotify := false
 
@@ -104,10 +116,13 @@ func UpsertEntry(c echo.Context) error {
 	if id == "" || id == "undefined" {
 		enableNotify = true
 	} else {
-		current := models.GetEntryById(id, true)
+		current := models.GetEntryById(id, true, false)
 		if current != nil {
 			entry.Id = current.Id
 			entry.Created = current.Created
+			if current.FindCount != nil {
+				entry.FindCount = current.FindCount
+			}
 			entry.SetIsNew(false) // HACK: force update
 			if current.Draft && !entry.Draft {
 				entry.Created = time.Now()
@@ -167,7 +182,7 @@ func UpsertEntry(c echo.Context) error {
 // @Router /v1/entries/{id} [delete]
 func DeleteEntry(c echo.Context) error {
 	id := c.Param("id")
-	entry := models.GetEntryById(id, true)
+	entry := models.GetEntryById(id, true, false)
 	if entry == nil {
 		panic("the user not found")
 	}

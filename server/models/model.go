@@ -35,6 +35,7 @@ type (
 	ServerSideRendering struct {
 		Entries bool `json:"entries"`
 		Entry   bool `json:"entry"`
+		Timeout float64 `json:"timeout"`
 	}
 	Cloudflare struct {
 		Enable   bool   `json:"enable"`
@@ -53,6 +54,8 @@ const (
 	KVNotifyMisskey           = "notify_misskey"
 	KVServerSideRendering     = "server_side_rendering"
 	KVCloudflare              = "cloudflare"
+	KVCustomCSS               = "custom_css"
+	KVMongoDBSearch      = "mongodb_search"
 )
 
 var pubsub *mgo_pubsub.PubSub
@@ -87,6 +90,7 @@ func InitDB() {
 	setDefaultConfig(KVServerSideRendering, util.StructToJsonMap(ServerSideRendering{
 		Entries: true,
 		Entry:   true,
+		Timeout: 3000,
 	}))
 	setDefaultConfig(KVEnableMongoDBQueryCache, true)
 	setDefaultConfig(KVEnableSSRPageCache, false)
@@ -95,6 +99,8 @@ func InitDB() {
 		ZoneID:   "",
 		APIToken: "",
 	}))
+	setDefaultConfig(KVCustomCSS, "")
+	setDefaultConfig(KVMongoDBSearch, "")
 
 	user := GetUserByEmail("root")
 	if user == nil {

@@ -1,6 +1,6 @@
-import * as React from "react";
+import React from "react";
 import {inject, observer} from "mobx-react";
-import {SettingsStore} from "../../stores/SettingsStore";
+import type {SettingsStore} from "../../stores/SettingsStore";
 import {style} from "typestyle";
 import {EmotionalCard} from "../../components/EmotionalCard";
 import ReactMarkdown from "react-markdown";
@@ -18,7 +18,7 @@ interface IState extends React.ComponentState {
 const styles = {
     root: style({
         $nest: {
-            "& div": {
+            "& section": {
                 margin: "1rem 0",
             },
             "& :first-child": {
@@ -34,6 +34,22 @@ const styles = {
             ["@media (prefers-color-scheme: dark)"]: {
                 background: `${DARK_COLORS.PaperBackGround} !important`,
                 color: `${COLORS.EmotionalWhite} !important`,
+
+                $nest: {
+                    "& a": {
+                        color: "#68a8f1 !important",
+                    },
+                    "& blockquote": {
+                        color: "#8d98a5 !important",
+                    },
+                    "& code": {
+                        color: "#a8ff60 !important",
+                        background: "#393e48 !important",
+                    },
+                    "& pre": {
+                        background: "#393e48 !important",
+                    },
+                },
             },
             "& *": {
                 maxWidth: "fit-content",
@@ -43,7 +59,25 @@ const styles = {
                 maxWidth: "100%",
                 minHeight: "unset",
                 height: "auto",
-            }
+            },
+            "& h1": {
+                maxWidth: "100%",
+            },
+            "& h2": {
+                maxWidth: "100%",
+            },
+            "& h3": {
+                maxWidth: "100%",
+            },
+            "& h4": {
+                maxWidth: "100%",
+            },
+            "& h5": {
+                maxWidth: "100%",
+            },
+            "& h6": {
+                maxWidth: "100%",
+            },
         },
     }),
 };
@@ -61,11 +95,12 @@ export class SideColumn extends React.Component<IProps, IState> {
 
     public render() {
         const contents = this.props.SettingsStore!.sideNavContents;
-        const scriptRegex = /<script>(.*?)<\/script>/gsi;
         return (
-            <div className={styles.root}>
+            <div id={"side_container"} className={styles.root}>
                 {contents.map((content, index) => {
+                    const scriptRegex = /<script>(.*?)<\/script>/gsi;
                     const script = scriptRegex.exec(content);
+                    console.log("script:", content, script);
                     if (script) {
                         try {
                             (window as any).eval(script[1] || "");
@@ -74,11 +109,11 @@ export class SideColumn extends React.Component<IProps, IState> {
                         }
                     }
                     return (
-                        <EmotionalCard>
+                        <EmotionalCard id={`side_content-${index+1}`} component={"section"}>
                             <ReactMarkdown
                                 key={index}
                                 source={content}
-                                className={`markdown-body ${styles.markdown}`}
+                                className={`side_content_body markdown-body ${styles.markdown}`}
                                 plugins={[[breaks]]}
                                 escapeHtml={false}
                             />

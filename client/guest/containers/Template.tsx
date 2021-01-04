@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {inject, observer} from "mobx-react";
 import {Header} from "../components/Header";
 import {EmotionalContainer} from "../components/EmotionalContainer";
@@ -6,11 +6,13 @@ import {Footer} from "../components/Footer";
 import {style} from "typestyle";
 import {SIZES} from "../constants/Style";
 import {SideColumn} from "./common/SideColumn";
-import {SettingsStore} from '../stores/SettingsStore';
+import type {SettingsStore} from "../stores/SettingsStore";
+import {Search} from "./common/Search";
 
 export interface IProps {
     title: string;
     SettingsStore?: SettingsStore;
+    showSearch: boolean;
 }
 
 const styles = {
@@ -44,20 +46,21 @@ const styles = {
 export class Template extends React.Component<IProps, {}> {
     public componentDidMount() {
         this.props.SettingsStore!.getSideNavContents();
+        this.props.SettingsStore!.getMongoDbSearch();
     }
 
     public render() {
         return (
             <>
                 <Header title={this.props.title}/>
-                <EmotionalContainer maxWidth={"lg"}>
-                    <div className={styles.columns}>
-                        <div className={styles.main}>
+                <EmotionalContainer maxWidth={"lg"} component={"main"}>
+                    <div id={"column_container"} className={styles.columns}>
+                        <div id={"main_column"} className={styles.main}>
                             {this.props.children}
                         </div>
                         {
                             this.props.SettingsStore!.sideNavContents.filter((content) => content.length !== 0).length !== 0 ?
-                                <div className={styles.side}>
+                                <div id={"side_column"} className={styles.side}>
                                     <SideColumn/>
                                 </div> :
                                 undefined
@@ -65,6 +68,7 @@ export class Template extends React.Component<IProps, {}> {
                     </div>
                 </EmotionalContainer>
                 <Footer/>
+                {this.props.showSearch && this.props.SettingsStore!.mongoDbSearch === "regex" && <Search />}
             </>
         );
     }

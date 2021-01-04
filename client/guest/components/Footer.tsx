@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import {style} from "typestyle";
 import {COLORS, SIZES} from "../constants/Style";
 import Container from "@material-ui/core/Container";
@@ -26,13 +26,13 @@ const styles = {
 export class Footer extends React.Component<IProps, {}> {
     public render() {
         return (
-            <div {...this.props} className={styles.root}>
+            <footer {...this.props} className={styles.root}>
                 <Container maxWidth={"xl"} className={styles.inner}>
                     <p><a href="https://github.com/mohemohe/parakeet">GitHub</a></p>
                     <p><a href="/admin">管理画面</a></p>
                     <p><a href="/swagger">swagger</a></p>
                 </Container>
-            </div>
+            </footer>
         )
     }
 }

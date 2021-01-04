@@ -4,7 +4,9 @@ import (
 	"github.com/globalsign/mgo/bson"
 	"github.com/go-bongo/bongo"
 	"github.com/mohemohe/parakeet/server/models/connection"
+	"regexp"
 	"strconv"
+	"strings"
 )
 
 type (
@@ -15,6 +17,7 @@ type (
 		Body               string        `bson:"body" json:"body"`
 		Author             bson.ObjectId `bson:"author" json:"author"`
 		Draft              bool          `bson:"draft" json:"draft"`
+		FindCount          *int          `bson:"find_count" json:"find_count,omitempty"`
 	}
 
 	Entries struct {
@@ -23,10 +26,30 @@ type (
 	}
 )
 
-func GetEntryById(id string, includeDraft bool) *Entry {
-	cacheKey := "entry:" + id
-
+func GetEntryById(id string, includeDraft bool, shouldCount bool) *Entry {
+	conn := connection.Mongo()
 	entry := new(Entry)
+
+	defer func() {
+		if shouldCount {
+			go func() {
+				err := conn.Collection(collections.Entries).Collection().UpdateId(bson.ObjectIdHex(id), bson.M{
+					"$inc": bson.M{
+						"find_count": 1,
+					},
+				})
+				if err != nil && entry.FindCount == nil {
+					conn.Collection(collections.Entries).Collection().UpdateId(bson.ObjectIdHex(id), bson.M{
+						"$set": bson.M{
+							"find_count": 1,
+						},
+					})
+				}
+			}()
+		}
+	}()
+
+	cacheKey := "entry:" + id
 	if err := GetCache(cacheKey, entry); err == nil {
 		if entry.Draft {
 			if includeDraft {
@@ -36,7 +59,6 @@ func GetEntryById(id string, includeDraft bool) *Entry {
 		}
 	}
 
-	conn := connection.Mongo()
 	err := conn.Collection(collections.Entries).FindById(bson.ObjectIdHex(id), entry)
 	if err != nil {
 		return nil
@@ -54,24 +76,45 @@ func GetEntryById(id string, includeDraft bool) *Entry {
 		}
 		return nil
 	}
+
 	return entry
 }
 
-func GetEntries(perPage int, page int, includeDraft bool) *Entries {
-	cacheKey := "entries:" + strconv.Itoa(perPage) + ":" + strconv.Itoa(page)
-
-	entries := new(Entries)
-	if err := GetCache(cacheKey, entries); err == nil {
-		if len(entries.Entries) == 0 {
-			entries.Entries = []Entry{}
-		}
-		return entries
-	}
-
+func GetEntries(perPage int, page int, search string, includeDraft bool) *Entries {
+	cacheKey := "entries:" + strconv.Itoa(perPage) + ":" + strconv.Itoa(page) + ":" + search
 	query := bson.M{}
+	entries := new(Entries)
+
 	if !includeDraft {
+		if err := GetCache(cacheKey, entries); err == nil {
+			if len(entries.Entries) == 0 {
+				entries.Entries = []Entry{}
+			}
+			return entries
+		}
 		query["draft"] = bson.M{
 			"$ne": true,
+		}
+	}
+
+	allowSearch := false
+	kv := GetKVS(KVMongoDBSearch)
+	if kv != nil {
+		allowSearch = kv.Value.(string) == "regex"
+	}
+	if allowSearch && search != "" {
+		word := strings.Split(search, " ")
+		titleCriteria := make([]bson.M, 0)
+		bodyCriteria := make([]bson.M, 0)
+		for _, v := range word {
+			regex := bson.RegEx{`.*` + regexp.QuoteMeta(v) + `.*`, ""}
+			titleCriteria = append(titleCriteria, bson.M{"title": regex})
+			bodyCriteria = append(bodyCriteria, bson.M{"body": regex})
+		}
+
+		query["$or"] = []bson.M{
+			{"$and": titleCriteria},
+			{"$and": bodyCriteria},
 		}
 	}
 
